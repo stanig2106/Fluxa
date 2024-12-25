@@ -1,18 +1,39 @@
-pub fn hello_network() {
-    println!("Hello from flux-network!");
-}
+//! This is the main entry file for the flux-network crate.
+//! It re-exports the public API for external usage.
 
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+// mod errors;
+// mod client;
+// mod request;
+// mod response;
+// mod http_parser;
+mod url;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+// pub use client::HttpClient;
+// pub use errors::NetworkError;
+// pub use request::Request;
+// pub use response::Response;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+/// Public method to fetch data from a given URL.
+///
+/// # Arguments
+/// * `url` - The URL to fetch (e.g., "http://example.com").
+///
+/// # Returns
+/// A `Result<Response, NetworkError>` which represents either a valid HTTP response or an error.
+///
+/// # Example
+/// ```no_run
+/// match flux_network::fetch("http://example.com") {
+///     Ok(response) => {
+///         println!("Status: {}", response.status_code);
+///     }
+///     Err(e) => {
+///         eprintln!("Error: {:?}", e);
+///     }
+/// }
+/// ```
+
+
+pub fn fetch(_url: &str) {
+    unimplemented!()
 }
