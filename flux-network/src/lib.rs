@@ -62,15 +62,11 @@ pub fn fetch(url: &str) -> Result<Response, NetworkError> {
     // method name and needs to be implemented in HttpClient).
     let raw_response_data = client.receive_raw_response()?;
 
-    let response_as_string = String::from_utf8_lossy(&raw_response_data);
-    println!("{}", response_as_string);
-
-    todo!()
     // Convert the raw response data into a structured Response.
-    // let response = client.parse_response(&raw_response_data)?;
+    let response = client.parse_response(&raw_response_data)?;
 
     // Return the Response or an error if something went wrong.
-    // Ok(response)
+    Ok(response)
 }
 
 #[cfg(test)]
@@ -81,8 +77,8 @@ mod tests {
     fn test_fetch() {
         // This is an integration test that requires an active internet connection.
         // It sends a real HTTP request to example.com and checks the response.
-        let response = fetch("https://example.com");
+        let response = fetch("http://example.com").unwrap();
+        assert_eq!(response.status_code, 200);
 
-        assert_eq!(response.unwrap().status_code, 200);
     }
 }

@@ -13,11 +13,6 @@ pub struct Response {
 }
 
 impl Response {
-    /// Creates a new `Response` with default/empty values.
-    pub fn new() -> Self {
-        unimplemented!()
-    }
-
     /// Retrieves a header value (if it exists) by key.
     ///
     /// # Arguments
@@ -26,6 +21,9 @@ impl Response {
     /// # Returns
     /// An `Option<String>` which is `Some(value)` if found, or `None` otherwise.
     pub fn get_header(&self, key: &str) -> Option<String> {
-        unimplemented!()
+        self.headers
+            .iter()
+            .find(|(k, _)| k.eq_ignore_ascii_case(key))
+            .map(|(_, v)| v.clone())
     }
 }

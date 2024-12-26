@@ -3,6 +3,7 @@ use std::net::TcpStream;
 use std::time::Duration;
 
 use crate::{NetworkError, Request, Response};
+use crate::http_parser::parse_http_response;
 
 /// A basic HTTP client that can send requests and receive responses over TCP.
 /// It manages the connection, sending HTTP requests, and reading raw HTTP responses.
@@ -242,20 +243,7 @@ impl HttpClient {
     /// # Returns
     /// A `Result<Response, NetworkError>` representing a parsed HTTP response or an error.
     pub fn parse_response(&self, raw_data: &[u8]) -> Result<Response, NetworkError> {
-        // You likely have a separate parsing function or logic for HTTP responses.
-        // For example, you might do something like:
-        //
-        //   parse_http_response(raw_data)
-        //
-        // Where `parse_http_response` is a helper function that:
-        //   - Splits headers and body
-        //   - Parses the status line
-        //   - Converts headers into a more structured form
-        //   - Returns a `Response` struct
-        //
-        // For now, we return an unimplemented error or a placeholder.
-
-        // Example placeholder:
-        Err(NetworkError::ParseError("ResponseParsingNotImplemented".to_string()))
+        // Use the provided `parse_http_response` function to parse the raw data.
+        parse_http_response(raw_data)
     }
 }

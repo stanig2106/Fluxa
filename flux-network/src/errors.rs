@@ -14,6 +14,9 @@ pub enum NetworkError {
     /// An error occurred due to an invalid URL.
     ParseUrlError(ParseUrlError),
 
+    /// An error occurred due to invalid data in the response.
+    InvalidData(String),
+
     /// A generic error type for all other issues.
     Other(String),
 
