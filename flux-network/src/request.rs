@@ -1,5 +1,7 @@
 //! This module defines the HTTP `Request` struct and helper methods to build requests.
 
+use std::fmt;
+
 /// Represents an HTTP method (GET, POST, etc.).
 #[derive(Debug)]
 pub enum Method {
@@ -54,7 +56,7 @@ impl Request {
     ///
     /// # Returns
     /// A `String` that can be sent directly to the server over a TCP connection.
-    pub fn to_http_string(&self, host: &str) -> String {
+    pub fn to_http_string(&self) -> String {
         // Convert our Method enum to the corresponding HTTP verb text
         let method_str = match self.method {
             Method::GET => "GET",
@@ -65,9 +67,6 @@ impl Request {
 
         // Start building the request line: "GET /path HTTP/1.1\r\n"
         let mut request = format!("{} {} HTTP/1.1\r\n", method_str, self.path);
-
-        // Add Host header
-        request.push_str(&format!("Host: {}\r\n", host));
 
         // Add any additional headers
         for (key, value) in &self.headers {
@@ -89,6 +88,14 @@ impl Request {
         }
 
         request
+    }
+
+}
+
+impl fmt::Display for Request {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // display the http_string
+        write!(f, "{}", self.to_http_string())
     }
 }
 
@@ -135,12 +142,10 @@ mod tests {
         let mut request = Request::new(Method::GET, "/test");
         request.add_header("User-Agent", "MyTestAgent/1.0");
 
-        let http_str = request.to_http_string("example.org");
+        let http_str = request.to_http_string();
 
         // Check the request line
         assert!(http_str.starts_with("GET /test HTTP/1.1\r\n"));
-        // Check that Host is present
-        assert!(http_str.contains("Host: example.org\r\n"));
         // Check our custom header
         assert!(http_str.contains("User-Agent: MyTestAgent/1.0\r\n"));
         // Body should be empty
@@ -158,12 +163,10 @@ mod tests {
         let body_data = br#"{"key":"value"}"#;
         request.set_body(body_data);
 
-        let http_str = request.to_http_string("example.com");
+        let http_str = request.to_http_string();
 
         // Request line
         assert!(http_str.starts_with("POST /submit HTTP/1.1\r\n"));
-        // Host header
-        assert!(http_str.contains("Host: example.com\r\n"));
         // Custom headers
         assert!(http_str.contains("Content-Type: application/json\r\n"));
         assert!(http_str.contains("Accept: application/json\r\n"));

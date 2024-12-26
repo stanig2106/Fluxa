@@ -200,16 +200,16 @@ mod tests {
 
         assert_eq!(parsed.scheme, "https");
         assert_eq!(parsed.host, "example.com");
-        assert_eq!(parsed.port, 80, "Default port is 80 (change if needed)");
+        assert_eq!(parsed.port, 443, "Default port should be 443 for https");
         assert_eq!(parsed.path, "/path/to/page");
     }
 
     #[test]
     fn test_parse_url_with_query() {
-        let url_str = "https://example.com/search?key=value&foo=bar";
+        let url_str = "http://example.com/search?key=value&foo=bar";
         let parsed = parse_url(url_str).expect("Failed to parse URL");
 
-        assert_eq!(parsed.scheme, "https");
+        assert_eq!(parsed.scheme, "http");
         assert_eq!(parsed.host, "example.com");
         assert_eq!(parsed.path, "/search");
         assert_eq!(parsed.query, "key=value&foo=bar");
