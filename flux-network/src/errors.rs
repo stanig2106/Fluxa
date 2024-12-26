@@ -1,5 +1,7 @@
 //! This module defines custom errors for the flux-network crate.
 
+use crate::url::ParseUrlError;
+
 /// Represents all possible errors that can occur during network requests.
 #[derive(Debug)]
 pub enum NetworkError {
@@ -9,6 +11,16 @@ pub enum NetworkError {
     IoError(String),
     /// An error occurred while parsing the HTTP response or request.
     ParseError(String),
+    /// An error occurred due to an invalid URL.
+    ParseUrlError(ParseUrlError),
+
     /// A generic error type for all other issues.
     Other(String),
+
+}
+
+impl From<ParseUrlError> for NetworkError {
+    fn from(e: ParseUrlError) -> Self {
+        NetworkError::ParseUrlError(e)
+    }
 }

@@ -8,7 +8,7 @@ pub struct Url {
     /// The scheme of the URL (e.g., "http", "https").
     pub scheme: String,
     /// The hostname of the URL (e.g., "example.com").
-    pub hostname: String,
+    pub host: String,
     /// The port number of the URL (e.g., 80, 443).
     pub port: u16,
     /// The path of the URL (e.g., "/path/to/resource").
@@ -23,113 +23,12 @@ pub struct Url {
     pub password: Option<String>,
 }
 
-pub fn parse_url(url: &str) -> Result<Url, String> {
-    // Vérifier si l’URL contient un schéma (ex. "http://", "https://")
-    // On cherche le "://" pour séparer le schéma du reste de l’URL.
-    let scheme_end = match url.find("://") {
-        Some(pos) => pos,
-        None => return Err("Invalid URL: missing or malformed scheme".to_string()),
-    };
-    let scheme = url[..scheme_end].to_string();
-
-    // Récupération de la partie qui suit le schéma, ex. "username:password@exemple.com:8080/..."
-    let remainder = &url[scheme_end + 3..];
-
-    // On va maintenant vérifier la présence éventuelle de username/password,
-    // localisés avant le '@' (s’il existe).
-    let mut username = None;
-    let mut password = None;
-    let auth_split: Vec<&str> = remainder.split('@').collect();
-
-    // S’il y a un '@', on considère la première partie comme les identifiants (username[:password]),
-    // et la deuxième partie comme le "host:port/path?query#fragment".
-    let (after_auth, _rest) = if auth_split.len() == 2 {
-        let credentials = auth_split[0];
-        let r = auth_split[1];
-
-        // Vérifier s’il existe un mot de passe.
-        // Format : "username:password"
-        if let Some(colon_pos) = credentials.find(':') {
-            username = Some(credentials[..colon_pos].to_string());
-            password = Some(credentials[colon_pos + 1..].to_string());
-        } else {
-            username = Some(credentials.to_string());
-        }
-        (r, true)
-    } else {
-        // Pas de partie "@" → pas d’identifiants
-        (remainder, false)
-    };
-
-    // Séparer la partie host:port du reste (path, query, fragment).
-    // On cherche d’abord le premier '/' pour séparer le chemin
-    // (on gérera ensuite query et fragment séparément).
-    let path_start = after_auth.find('/').unwrap_or(after_auth.len());
-    let (host_port_part, path_part) = after_auth.split_at(path_start);
-
-    // Extraire le host et le port éventuel (ex. "exemple.com:8080").
-    let mut hostname = String::new();
-    let mut port: u16 = default_port(&scheme);
-
-    if let Some(colon_pos) = host_port_part.find(':') {
-        // On a un port
-        hostname = host_port_part[..colon_pos].to_string();
-        let port_str = &host_port_part[colon_pos + 1..];
-
-        // Convertir le port en u16
-        match port_str.parse::<u16>() {
-            Ok(p) => port = p,
-            Err(_) => return Err("Invalid port".to_string()),
-        }
-    } else {
-        // Pas de port → tout est dans le hostname
-        if !host_port_part.is_empty() {
-            hostname = host_port_part.to_string();
-        }
-    }
-
-    // Gérer le chemin, la query, et le fragment.
-    // Exemple : /path/to/resource?key=value#section
-    let mut path = String::new();
-    let mut query = String::new();
-    let mut fragment = String::new();
-
-    if !path_part.is_empty() {
-        // path_part commence par '/', on l’enlève pour faciliter la suite
-        let path_part = &path_part[1..];
-
-        // 1) Chercher d'abord le '#'.
-        let hash_pos = path_part.find('#').unwrap_or(path_part.len());
-        let (before_hash, after_hash) = path_part.split_at(hash_pos);
-
-        // Si on a trouvé un '#', la suite after_hash commence par '#'
-        if hash_pos < path_part.len() {
-            fragment = after_hash[1..].to_string();
-        }
-
-        // 2) Dans la partie avant le '#', on cherche un éventuel '?'
-        let query_start = before_hash.find('?').unwrap_or(before_hash.len());
-        let (path_str, query_part) = before_hash.split_at(query_start);
-
-        // Si on a trouvé un '?', la suite query_part commence par '?'
-        if query_start < before_hash.len() {
-            query = query_part[1..].to_string();
-        }
-
-        // 3) Le reste est le chemin
-        path = path_str.to_string();
-    }
-
-    Ok(Url {
-        scheme,
-        hostname,
-        port,
-        path: format!("/{}", path),
-        query,
-        fragment,
-        username,
-        password,
-    })
+#[derive(Debug, PartialEq, Eq)]
+pub enum ParseUrlError {
+    /// The URL is missing its scheme or it's malformed (e.g., no "://").
+    MissingScheme,
+    /// The port is not a valid u16 integer.
+    InvalidPort,
 }
 
 fn default_port(scheme: &String) -> u16 {
@@ -139,6 +38,106 @@ fn default_port(scheme: &String) -> u16 {
         "ftp" => 21,
         _ => 80,
     }
+}
+
+/// Parses a URL string and returns a `Url` struct, or an error of type `ParseUrlError`.
+pub fn parse_url(url: &str) -> Result<Url, ParseUrlError> {
+    // Check if the URL contains a scheme (ex: "http://", "https://")
+    let scheme_end = match url.find("://") {
+        Some(pos) => pos,
+        None => return Err(ParseUrlError::MissingScheme),
+    };
+    let scheme = url[..scheme_end].to_string();
+
+    // Retrieve everything after the scheme, e.g. "username:password@exemple.com:8080/..."
+    let remainder = &url[scheme_end + 3..];
+
+    // Look for optional username/password before '@'.
+    let mut username = None;
+    let mut password = None;
+    let auth_split: Vec<&str> = remainder.split('@').collect();
+
+    // If there's an '@', the first part is credentials (username[:password]),
+    // and the second part is "host:port/path?query#fragment".
+    let after_auth = if auth_split.len() == 2 {
+        let credentials = auth_split[0];
+        let host_port_path = auth_split[1];
+
+        // Check for password: "username:password"
+        if let Some(colon_pos) = credentials.find(':') {
+            username = Some(credentials[..colon_pos].to_string());
+            password = Some(credentials[colon_pos + 1..].to_string());
+        } else {
+            username = Some(credentials.to_string());
+        }
+        host_port_path
+    } else {
+        // No credentials
+        remainder
+    };
+
+    // Separate "host:port" from "path?query#fragment" by looking for the first '/'.
+    let path_start = after_auth.find('/').unwrap_or(after_auth.len());
+    let (host_port_part, path_part) = after_auth.split_at(path_start);
+
+    // Extract hostname and (optional) port from "host:port".
+    let mut hostname = String::new();
+    let mut port = default_port(&scheme);
+
+    if let Some(colon_pos) = host_port_part.find(':') {
+        hostname = host_port_part[..colon_pos].to_string();
+        let port_str = &host_port_part[colon_pos + 1..];
+        // Try converting port to a valid u16.
+        port = match port_str.parse() {
+            Ok(p) => p,
+            Err(_) => return Err(ParseUrlError::InvalidPort),
+        };
+    } else if !host_port_part.is_empty() {
+        // Host only.
+        hostname = host_port_part.to_string();
+    }
+
+    // Now handle path, query, and fragment.
+    let mut path = String::new();
+    let mut query = String::new();
+    let mut fragment = String::new();
+
+    if !path_part.is_empty() {
+        // path_part starts with '/', remove the leading slash.
+        let path_part = &path_part[1..];
+
+        // 1) Look for '#'
+        let hash_pos = path_part.find('#').unwrap_or(path_part.len());
+        let (before_hash, after_hash) = path_part.split_at(hash_pos);
+
+        // If there's a '#', everything after it is the fragment.
+        if hash_pos < path_part.len() {
+            fragment = after_hash[1..].to_string(); // remove '#'
+        }
+
+        // 2) In the substring before '#', look for a '?'.
+        let query_start = before_hash.find('?').unwrap_or(before_hash.len());
+        let (path_str, query_part) = before_hash.split_at(query_start);
+
+        // If there's a '?', everything after it is the query.
+        if query_start < before_hash.len() {
+            query = query_part[1..].to_string(); // remove '?'
+        }
+
+        // 3) The rest is the path
+        path = path_str.to_string();
+    }
+
+    Ok(Url {
+        scheme,
+        host: hostname,
+        port,
+        path: format!("/{}", path),
+        query,
+        fragment,
+        username,
+        password,
+    })
 }
 
 #[cfg(test)]
@@ -151,7 +150,7 @@ mod tests {
         let parsed = parse_url(url_str).expect("Failed to parse URL");
 
         assert_eq!(parsed.scheme, "http");
-        assert_eq!(parsed.hostname, "example.com");
+        assert_eq!(parsed.host, "example.com");
         assert_eq!(parsed.port, 80, "Default port should be 80 for http");
         assert_eq!(parsed.path, "/", "Path should be '/' by default");
         assert_eq!(parsed.query, "", "Query should be empty");
@@ -175,7 +174,7 @@ mod tests {
         let parsed = parse_url(url_str).expect("Failed to parse URL");
 
         assert_eq!(parsed.scheme, "http");
-        assert_eq!(parsed.hostname, "example.com");
+        assert_eq!(parsed.host, "example.com");
         assert_eq!(parsed.port, 8080);
         assert_eq!(parsed.path, "/", "Path should be '/' by default");
         assert_eq!(parsed.query, "");
@@ -184,11 +183,11 @@ mod tests {
 
     #[test]
     fn test_parse_url_with_credentials() {
-        let url_str = "http://user:pass@example.com:8080";
+        let url_str = "https://user:pass@example.com:8080";
         let parsed = parse_url(url_str).expect("Failed to parse URL");
 
-        assert_eq!(parsed.scheme, "http");
-        assert_eq!(parsed.hostname, "example.com");
+        assert_eq!(parsed.scheme, "https");
+        assert_eq!(parsed.host, "example.com");
         assert_eq!(parsed.port, 8080);
         assert_eq!(parsed.username, Some("user".to_string()));
         assert_eq!(parsed.password, Some("pass".to_string()));
@@ -200,7 +199,7 @@ mod tests {
         let parsed = parse_url(url_str).expect("Failed to parse URL");
 
         assert_eq!(parsed.scheme, "https");
-        assert_eq!(parsed.hostname, "example.com");
+        assert_eq!(parsed.host, "example.com");
         assert_eq!(parsed.port, 80, "Default port is 80 (change if needed)");
         assert_eq!(parsed.path, "/path/to/page");
     }
@@ -211,7 +210,7 @@ mod tests {
         let parsed = parse_url(url_str).expect("Failed to parse URL");
 
         assert_eq!(parsed.scheme, "https");
-        assert_eq!(parsed.hostname, "example.com");
+        assert_eq!(parsed.host, "example.com");
         assert_eq!(parsed.path, "/search");
         assert_eq!(parsed.query, "key=value&foo=bar");
         assert_eq!(parsed.fragment, "");
@@ -223,7 +222,7 @@ mod tests {
         let parsed = parse_url(url_str).expect("Failed to parse URL");
 
         assert_eq!(parsed.scheme, "http");
-        assert_eq!(parsed.hostname, "example.com");
+        assert_eq!(parsed.host, "example.com");
         assert_eq!(parsed.path, "/page");
         assert_eq!(parsed.query, "");
         assert_eq!(parsed.fragment, "section");
@@ -235,7 +234,7 @@ mod tests {
         let parsed = parse_url(url_str).expect("Failed to parse URL");
 
         assert_eq!(parsed.scheme, "http");
-        assert_eq!(parsed.hostname, "example.com");
+        assert_eq!(parsed.host, "example.com");
         assert_eq!(parsed.path, "/path");
         assert_eq!(parsed.query, "foo=bar");
         assert_eq!(parsed.fragment, "title");
@@ -248,7 +247,7 @@ mod tests {
 
         assert!(result.is_err(), "Should fail without scheme");
         if let Err(err) = result {
-            assert!(err.contains("missing or malformed scheme"));
+            assert_eq!(err, ParseUrlError::MissingScheme);
         }
     }
 
@@ -259,7 +258,7 @@ mod tests {
 
         assert!(result.is_err(), "Parsing should fail with invalid port");
         if let Err(err) = result {
-            assert!(err.contains("Invalid port"));
+            assert_eq!(err, ParseUrlError::InvalidPort);
         }
     }
 }
