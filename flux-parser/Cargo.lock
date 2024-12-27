@@ -3,21 +3,9 @@
 version = 3
 
 [[package]]
-name = "flux-core"
-version = "0.1.0"
-
-[[package]]
-name = "flux-network"
-version = "0.1.0"
-
-[[package]]
 name = "flux-parser"
 version = "0.1.0"
 
 [[package]]
-name = "fluxa"
+name = "html-parser"
 version = "0.1.0"
-dependencies = [
- "flux-network",
- "flux-parser",
-]

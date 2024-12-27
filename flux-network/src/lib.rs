@@ -34,38 +34,29 @@ use crate::request::Method;
 /// }
 /// ```
 
-pub fn fetch(url: &str) -> Result<Response, NetworkError> {
-    // Parse the given URL into its components (scheme, host, port, path, etc.).
+pub async fn fetch(url: &str) -> Result<Response, NetworkError> {
+    // Parse l’URL
     let parsed_url = url::parse_url(url)?;
 
-    // Create a new instance of the HTTP client.
     let mut client = HttpClient::new();
 
-    // Connect to the server using the parsed host and port.
-    // If no port is specified, default to 80 for HTTP.
+    // Connexion au serveur
     client.connect(&parsed_url.host, parsed_url.port)?;
 
-    // Construct a new request (for example, use the GET method and the parsed path).
-    // You may want to handle different HTTP methods in the future.
+    // Prépare la requête HTTP
     let mut request = Request::new(Method::GET, &parsed_url.path);
-
-    // Add any required headers (here, we set a Host header and a basic User-Agent).
     request.add_header("Host", &parsed_url.host);
     request.add_header("User-Agent", "FluxNetwork/0.1");
 
-    println!("{}", request);
-
-    // Send the request through the client.
+    // Envoie la requête
     client.send_request(&request)?;
 
-    // Retrieve the raw response data from the server (this is just a placeholder
-    // method name and needs to be implemented in HttpClient).
+    // Récupère la réponse brute
     let raw_response_data = client.receive_raw_response()?;
 
-    // Convert the raw response data into a structured Response.
+    // Parse la réponse dans une structure `Response`
     let response = client.parse_response(&raw_response_data)?;
 
-    // Return the Response or an error if something went wrong.
     Ok(response)
 }
 

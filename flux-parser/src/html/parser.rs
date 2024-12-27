@@ -23,31 +23,20 @@ pub struct HtmlElement {
 }
 
 /// Fonction principale de parsing HTML
-pub fn parse_html(input: &str) -> Result<HtmlDocument, ParserError> {
-    // 1. Tokenize the input
-    let tokens = tokenize(input)?;
-
-    // 2. Parse the tokens into a DOM tree
-    let mut parser = HtmlParser::new(tokens);
-    let nodes = parser.parse_nodes()?;
-
-    // 3. Renvoie un HtmlDocument
-    Ok(HtmlDocument { root_nodes: nodes })
-}
 
 /// A small struct to hold state for our parser
-struct HtmlParser {
+pub(crate) struct HtmlParser {
     tokens: Vec<Token>,
     pos: usize,
 }
 
 impl HtmlParser {
-    fn new(tokens: Vec<Token>) -> Self {
+    pub(crate) fn new(tokens: Vec<Token>) -> Self {
         HtmlParser { tokens, pos: 0 }
     }
 
     /// Parse multiple top-level nodes
-    fn parse_nodes(&mut self) -> Result<Vec<HtmlNode>, ParserError> {
+    pub(crate) fn parse_nodes(&mut self) -> Result<Vec<HtmlNode>, ParserError> {
         let mut nodes = Vec::new();
         loop {
             match self.current_token()? {
@@ -164,5 +153,173 @@ impl HtmlParser {
             self.pos += 1;
         }
         Ok(())
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*; // imports from the same module where parse_html is defined
+    use crate::error::ParserError;
+
+    #[test]
+    fn test_parse_empty_input() -> Result<(), ParserError> {
+        let input = "";
+        let doc = parse_html(input)?;
+        assert!(doc.root_nodes.is_empty(), "Root nodes should be empty for empty input");
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_single_element_no_children() -> Result<(), ParserError> {
+        let input = "<div></div>";
+        let doc = parse_html(input)?;
+        assert_eq!(doc.root_nodes.len(), 1);
+        match &doc.root_nodes[0] {
+            HtmlNode::Element(element) => {
+                assert_eq!(element.tag_name, "div");
+                assert!(element.children.is_empty(), "Expected no children for <div></div>");
+            }
+            _ => panic!("Expected a single element node"),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_single_element_with_text_child() -> Result<(), ParserError> {
+        let input = "<div>Hello World</div>";
+        let doc = parse_html(input)?;
+        assert_eq!(doc.root_nodes.len(), 1);
+
+        match &doc.root_nodes[0] {
+            HtmlNode::Element(element) => {
+                // Check tag name
+                assert_eq!(element.tag_name, "div");
+                // Expect one child node of type Text
+                assert_eq!(element.children.len(), 1);
+
+                match &element.children[0] {
+                    HtmlNode::Text(text) => {
+                        assert_eq!(text, "Hello World");
+                    }
+                    _ => panic!("Expected a text node child"),
+                }
+            }
+            _ => panic!("Expected a single element node"),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_nested_elements() -> Result<(), ParserError> {
+        let input = "<div><span>Test</span></div>";
+        let doc = parse_html(input)?;
+        assert_eq!(doc.root_nodes.len(), 1);
+
+        match &doc.root_nodes[0] {
+            HtmlNode::Element(element) => {
+                assert_eq!(element.tag_name, "div");
+                assert_eq!(element.children.len(), 1);
+
+                match &element.children[0] {
+                    HtmlNode::Element(child_elem) => {
+                        assert_eq!(child_elem.tag_name, "span");
+                        assert_eq!(child_elem.children.len(), 1);
+
+                        match &child_elem.children[0] {
+                            HtmlNode::Text(text) => {
+                                assert_eq!(text, "Test");
+                            }
+                            _ => panic!("Expected text node within <span>"),
+                        }
+                    }
+                    _ => panic!("Expected an element node <span> as child of <div>"),
+                }
+            }
+            _ => panic!("Expected a single element node <div>"),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_comment() -> Result<(), ParserError> {
+        let input = "<!-- A comment --><div>Content</div>";
+        let doc = parse_html(input)?;
+        assert_eq!(doc.root_nodes.len(), 2);
+
+        match &doc.root_nodes[0] {
+            HtmlNode::Comment(comment_text) => {
+                assert_eq!(comment_text, " A comment ");
+            }
+            _ => panic!("First node should be a comment"),
+        }
+
+        match &doc.root_nodes[1] {
+            HtmlNode::Element(element) => {
+                assert_eq!(element.tag_name, "div");
+                assert_eq!(element.children.len(), 1);
+                match &element.children[0] {
+                    HtmlNode::Text(text) => {
+                        assert_eq!(text, "Content");
+                    }
+                    _ => panic!("Expected text node in <div>"),
+                }
+            }
+            _ => panic!("Expected an element node as second child"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_multiple_siblings() -> Result<(), ParserError> {
+        let input = "<p>One</p><p>Two</p><p>Three</p>";
+        let doc = parse_html(input)?;
+        assert_eq!(doc.root_nodes.len(), 3);
+
+        let text_values: Vec<String> = doc.root_nodes.iter().map(|node| {
+            if let HtmlNode::Element(e) = node {
+                if let Some(HtmlNode::Text(t)) = e.children.get(0) {
+                    return t.clone();
+                }
+            }
+            panic!("Expected a <p> element with text content")
+        }).collect();
+
+        assert_eq!(text_values, vec!["One", "Two", "Three"]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_attributes() -> Result<(), ParserError> {
+        let input = r#"<div id="main" class="container"></div>"#;
+        let doc = parse_html(input)?;
+        assert_eq!(doc.root_nodes.len(), 1);
+
+        match &doc.root_nodes[0] {
+            HtmlNode::Element(element) => {
+                assert_eq!(element.tag_name, "div");
+                // Check attributes
+                let mut attr_map = std::collections::HashMap::new();
+                for (key, value) in &element.attributes {
+                    attr_map.insert(key.clone(), value.clone());
+                }
+                assert_eq!(attr_map.get("id").map(|s| s.as_str()), Some("main"));
+                assert_eq!(attr_map.get("class").map(|s| s.as_str()), Some("container"));
+            }
+            _ => panic!("Expected a single element node"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_unclosed_element() {
+        let input = "<div>";
+        let result = parse_html(input);
+        // Depending on how you handle errors, this may be Ok or Err:
+        // If your parser stops at EOF without matching </div>, it could succeed or return an error
+        // Here we assume it's an error:
+        assert!(result.is_err(), "Parser should error on unclosed element <div>");
     }
 }
