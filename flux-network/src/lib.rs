@@ -8,11 +8,11 @@ mod response;
 mod http_parser;
 mod url;
 
+use crate::request::Method;
 pub use client::HttpClient;
 pub use errors::NetworkError;
 pub use request::Request;
 pub use response::Response;
-use crate::request::Method;
 
 /// Public method to fetch data from a given URL.
 ///
@@ -68,8 +68,8 @@ mod tests {
     fn test_fetch() {
         // This is an integration test that requires an active internet connection.
         // It sends a real HTTP request to example.com and checks the response.
-        let response = fetch("http://example.com").unwrap();
+        let future = fetch("http://example.com");
+        let response = futures::executor::block_on(future).unwrap();
         assert_eq!(response.status_code, 200);
-
     }
 }

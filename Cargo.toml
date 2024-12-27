@@ -1,7 +1,8 @@
 [workspace]
 resolver = "2"
-members = [ "flux-core",
+members = [
+    "flux-core",
     "flux-network",
     "flux-parser",
-    "fluxa",
+    "fluxa/src-tauri",
 ]

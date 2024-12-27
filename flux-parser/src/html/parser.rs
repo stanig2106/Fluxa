@@ -161,6 +161,7 @@ impl HtmlParser {
 mod tests {
     use super::*; // imports from the same module where parse_html is defined
     use crate::error::ParserError;
+    use crate::html::parse_html;
 
     #[test]
     fn test_parse_empty_input() -> Result<(), ParserError> {
