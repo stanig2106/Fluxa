@@ -23,17 +23,18 @@ pub use response::Response;
 /// A `Result<Response, NetworkError>` which represents either a valid HTTP response or an error.
 ///
 /// # Example
-/// ```no_run
-/// match flux_network::fetch("http://example.com") {
+/// ```rust,no_run
+/// use futures::executor::block_on;
+/// match block_on(flux_network::fetch("http://example.com")) {
 ///     Ok(response) => {
-///         println!("Status: {}", response.status_code);
+///         println!("Status code: {:?}", response);
 ///     }
-///     Err(e) => {
-///         eprintln!("Error: {:?}", e);
+///     Err(err) => {
+///         eprintln!("Error: {:#?}", err);
 ///     }
 /// }
+///
 /// ```
-
 pub async fn fetch(url: &str) -> Result<Response, NetworkError> {
     // Parse l’URL
     let parsed_url = url::parse_url(url)?;
