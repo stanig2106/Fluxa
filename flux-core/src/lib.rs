@@ -1,7 +1,3 @@
-use serde::ser::SerializeStruct;
-use serde::Serialize;
-use std::sync::mpsc::Sender;
-
 pub struct Flux {
     pub memory: Memory,
     // pub config: Config,
@@ -9,9 +5,9 @@ pub struct Flux {
 }
 
 impl Flux {
-    pub fn new(memory_sender: Sender<()>) -> Flux {
+    pub fn new() -> Flux {
         Flux {
-            memory: Memory::new(memory_sender),
+            memory: Memory::new(),
             // config: Config::new(),
             // state: State::new(),
         }
@@ -20,14 +16,12 @@ impl Flux {
 
 #[derive(Clone, Debug)]
 pub struct Memory {
-    sender_callback: Sender<()>,
     current_url: Option<String>,
 }
 
 impl Memory {
-    pub fn new(sender_callback: Sender<()>) -> Memory {
+    pub fn new() -> Memory {
         Memory {
-            sender_callback,
             current_url: None,
         }
     }
@@ -36,18 +30,6 @@ impl Memory {
     }
     pub fn set_current_url(&mut self, url: String) {
         self.current_url = Some(url);
-        self.sender_callback.send(()).unwrap();
-    }
-}
-
-impl Serialize for Memory {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let mut state = serializer.serialize_struct("Memory", 1)?;
-        state.serialize_field("current_url", &self.current_url)?;
-        state.end()
     }
 }
 

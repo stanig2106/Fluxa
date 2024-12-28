@@ -4,5 +4,6 @@ members = [
     "flux-core",
     "flux-network",
     "flux-parser",
-    "fluxa/src-tauri",
+    "flux-ui",
+    "fluxa",
 ]

@@ -1,0 +1,10 @@
+[package]
+name = "fluxa"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+flux-network = { path = "../flux-network" }
+flux-parser = { path = "../flux-parser" }
+flux-core = { path = "../flux-core" }
+flux-ui = { path = "../flux-ui" }
