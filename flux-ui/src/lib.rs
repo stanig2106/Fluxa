@@ -4,20 +4,20 @@ use flux_core::Flux;
 use gtk::prelude::*;
 use gtk::{Application, ApplicationWindow, Box, Button, Entry, Label, Orientation};
 
-pub fn init(mut flux: Flux) {
+pub fn init() {
     let app = Application::new(
         Some("com.example.navigateur_ui"),
         Default::default(),
     );
 
-    app.connect_activate(|app| {
-        build_ui(app, &flux);
+    app.connect_activate(move |app| {
+        build_ui(app);
     });
 
     app.run();
 }
 
-fn build_ui(app: &Application, mut flux: &Flux) {
+fn build_ui(app: &Application) {
     // Création de la fenêtre principale
     let window = ApplicationWindow::builder()
         .application(app)
