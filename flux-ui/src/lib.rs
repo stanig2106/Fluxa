@@ -1,8 +1,7 @@
-#[macro_use]
-extern crate glib;
-use flux_core::Flux;
+use glib::MainContext;
 use gtk::prelude::*;
-use gtk::{Application, ApplicationWindow, Box, Button, Entry, Label, Orientation};
+use gtk::{Application, ApplicationWindow, Box as GtkBox, Button, Entry, Label, Orientation};
+use std::sync::Arc;
 
 pub fn init() {
     let app = Application::new(
@@ -27,14 +26,14 @@ fn build_ui(app: &Application) {
         .build();
 
     // Créer une boîte verticale pour organiser les widgets
-    let vbox = Box::new(Orientation::Vertical, 5);
+    let vbox = GtkBox::new(Orientation::Vertical, 5);
     vbox.set_margin_top(10);
     vbox.set_margin_start(10);
     vbox.set_margin_end(10);
     window.set_child(Some(&vbox));
 
     // Création de la barre supérieure avec le titre, l'URL et le bouton Go
-    let hbox_top = Box::new(Orientation::Horizontal, 5);
+    let hbox_top = GtkBox::new(Orientation::Horizontal, 5);
 
     // Titre à gauche
     let title = Label::new(Some("Fluxa"));
@@ -44,6 +43,7 @@ fn build_ui(app: &Application) {
     // Champ de saisie pour l'URL
     let url_entry = Entry::new();
     url_entry.set_placeholder_text(Some("Entrez l'URL ici"));
+    url_entry.set_text("fluxa://hello");
     url_entry.set_hexpand(true); // Prendre tout l'espace horizontal disponible
     hbox_top.append(&url_entry);
 
@@ -54,32 +54,56 @@ fn build_ui(app: &Application) {
     vbox.append(&hbox_top);
 
     // Conteneur principal pour afficher le DOM (placeholder)
-    let main_container = Label::new(Some("Contenu du DOM affiché ici"));
+    let main_container = GtkBox::new(Orientation::Vertical, 0);
     main_container.set_hexpand(true);
     main_container.set_vexpand(true);
     vbox.append(&main_container);
 
-    let load_url = {
+    let load_url = Arc::new({
         let url_entry = url_entry.clone();
         let main_container = main_container.clone();
         move || {
-            let url = url_entry.text().to_string();
-            main_container.set_text(&format!("Chargement de : {}", url));
-        }
-    };
+            let url_entry = url_entry.clone();
+            let main_container = main_container.clone();
+            // Spawn the async task onto the main context
+            MainContext::default().spawn_local(async move {
+                let url = url_entry.text().to_string();
+                let response = match flux_network::fetch(&url).await {
+                    Ok(response) => response,
+                    Err(e) => {
+                        eprintln!("Error fetching URL: {:?}", e);
+                        return;
+                    }
+                };
+                // Convert body from Vec<u8> to String
+                let dom = match flux_parser::parse_document(
+                    &String::from_utf8_lossy(&response.body).to_string(),
+                    "text/html",
+                ) {
+                    Ok(flux_parser::ParsedDocument::Html(dom)) => dom,
+                    Err(e) => {
+                        eprintln!("Error parsing document: {:?}", e);
+                        return;
+                    }
+                };
 
-    {
-        let load_url = load_url.clone();
-        go_button.connect_clicked(move |_| {
-            load_url();
-        });
-    }
-    {
-        let load_url = load_url.clone();
-        url_entry.connect_activate(move |_| {
-            load_url();
-        });
-    }
+                flux_dom::draw_dom(main_container, dom);
+            });
+        }
+    });
+
+    // Clone the Arc for go_button
+    let load_url_clone = Arc::clone(&load_url);
+    go_button.connect_clicked(move |_| {
+        load_url_clone();
+    });
+
+    // Clone the Arc for url_entry
+    let load_url_clone = Arc::clone(&load_url);
+    url_entry.connect_activate(move |_| {
+        load_url_clone();
+    });
 
     window.show();
+    Arc::clone(&load_url)();
 }

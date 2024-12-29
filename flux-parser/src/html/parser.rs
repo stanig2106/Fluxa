@@ -1,7 +1,8 @@
 /// html_parser.rs
 
 use crate::error::ParserError;
-use crate::html::token::{tokenize, Token};
+use crate::html::token::Token;
+
 
 #[derive(Debug)]
 pub struct HtmlDocument {
@@ -22,6 +23,12 @@ pub struct HtmlElement {
     pub children: Vec<HtmlNode>,
 }
 
+impl HtmlElement {
+    pub fn get_attribute(&self, name: &str) -> Option<&str> {
+        self.attributes.iter().find(|(key, _)| key == name).map(|(_, value)| value.as_str())
+    }
+}
+
 /// Fonction principale de parsing HTML
 
 /// A small struct to hold state for our parser
@@ -29,6 +36,11 @@ pub(crate) struct HtmlParser {
     tokens: Vec<Token>,
     pos: usize,
 }
+
+const VOID_ELEMENTS: &[&str] = &[
+    "area", "base", "br", "col", "embed", "hr", "img", "input",
+    "link", "meta", "param", "source", "track", "wbr", "!doctype",
+];
 
 impl HtmlParser {
     pub(crate) fn new(tokens: Vec<Token>) -> Self {
@@ -74,7 +86,7 @@ impl HtmlParser {
 
     /// Parse an element: assumes current token is Token::StartTag
     fn parse_element(&mut self) -> Result<HtmlElement, ParserError> {
-        // e.g. <div ...>
+        // e.g., <div ...>
         let (tag_name, attributes) = match self.current_token()? {
             Token::StartTag(name, attrs) => (name.clone(), attrs.clone()),
             other => {
@@ -84,18 +96,29 @@ impl HtmlParser {
                 )))
             }
         };
-        // consume start tag
+
+        // Consume start tag
         self.advance()?;
 
-        // parse children until we see a matching end tag or EOF
+        // Check if the tag is a void element
+        if VOID_ELEMENTS.contains(&tag_name.to_lowercase().as_str()) {
+            // Void elements do not have children and do not require end tags
+            return Ok(HtmlElement {
+                tag_name,
+                attributes,
+                children: Vec::new(),
+            });
+        }
+
+        // Parse children until we see a matching end tag or EOF
         let children = self.parse_children(&tag_name)?;
 
         // Expect an EndTag
         match self.current_token()? {
-            Token::EndTag(end_name) if *end_name == tag_name => {
-                self.advance()?; // consume </tag_name>
+            Token::EndTag(ref end_name) if end_name.eq_ignore_ascii_case(&tag_name) => {
+                self.advance()?; // Consume </tag_name>
             }
-            Token::EndTag(end_name) => {
+            Token::EndTag(ref end_name) => {
                 return Err(ParserError::Other(format!(
                     "Expected </{}>, but found </{}>",
                     tag_name, end_name
@@ -110,7 +133,7 @@ impl HtmlParser {
         }
 
         Ok(HtmlElement {
-            tag_name,
+            tag_name: tag_name.to_lowercase(),
             attributes,
             children,
         })
@@ -159,7 +182,8 @@ impl HtmlParser {
 
 #[cfg(test)]
 mod tests {
-    use super::*; // imports from the same module where parse_html is defined
+    use super::*;
+    // imports from the same module where parse_html is defined
     use crate::error::ParserError;
     use crate::html::parse_html;
 
@@ -322,5 +346,25 @@ mod tests {
         // If your parser stops at EOF without matching </div>, it could succeed or return an error
         // Here we assume it's an error:
         assert!(result.is_err(), "Parser should error on unclosed element <div>");
+    }
+
+    #[test]
+    fn test_with_simple_dom() {
+        let input = r#"
+<HTML><HEAD><meta http-equiv="content-type" content="text/html;charset=utf-8">
+<TITLE>301 Moved</TITLE></HEAD><BODY>
+<H1>301 Moved</H1>
+The document has moved
+<A HREF="http://www.google.fr/">here</A>.
+</BODY></HTML>"#;
+        let doc = parse_html(input).unwrap();
+        assert_eq!(doc.root_nodes.len(), 1);
+        match &doc.root_nodes[0] {
+            HtmlNode::Element(element) => {
+                assert_eq!(element.tag_name, "HTML");
+                assert_eq!(element.children.len(), 2);
+            }
+            _ => panic!("Expected a single element node"),
+        }
     }
 }

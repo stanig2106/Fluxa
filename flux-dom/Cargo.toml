@@ -1,0 +1,10 @@
+[package]
+name = "flux-dom"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+flux-parser = { path = "../flux-parser" }
+gtk = { version = "0.9.5", package = "gtk4", features = ["v4_6"] }
+
+

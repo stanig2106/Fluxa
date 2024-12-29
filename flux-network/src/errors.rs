@@ -17,6 +17,9 @@ pub enum NetworkError {
     /// An error occurred due to invalid data in the response.
     InvalidData(String),
 
+    /// The requested resource was not found (HTTP 404).
+    NotFound,
+
     /// A generic error type for all other issues.
     Other(String),
 

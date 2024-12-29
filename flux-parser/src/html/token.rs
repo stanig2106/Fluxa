@@ -81,6 +81,7 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>, ParserError> {
 
     // Finally, add EOF token
     tokens.push(Token::Eof);
+    print!("{:?}", tokens);
     Ok(tokens)
 }
 

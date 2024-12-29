@@ -68,6 +68,14 @@ name = "flux-core"
 version = "0.1.0"
 
 [[package]]
+name = "flux-dom"
+version = "0.1.0"
+dependencies = [
+ "flux-parser",
+ "gtk4",
+]
+
+[[package]]
 name = "flux-network"
 version = "0.1.0"
 dependencies = [
@@ -83,6 +91,9 @@ name = "flux-ui"
 version = "0.1.0"
 dependencies = [
  "flux-core",
+ "flux-dom",
+ "flux-network",
+ "flux-parser",
  "glib",
  "gtk4",
 ]

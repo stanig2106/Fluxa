@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "flux-core",
+    "flux-dom",
     "flux-network",
     "flux-parser",
     "flux-ui",

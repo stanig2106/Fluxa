@@ -7,6 +7,7 @@ mod request;
 mod response;
 mod http_parser;
 mod url;
+mod settings;
 
 use crate::request::Method;
 pub use client::HttpClient;
@@ -38,6 +39,10 @@ pub use response::Response;
 pub async fn fetch(url: &str) -> Result<Response, NetworkError> {
     // Parse l’URL
     let parsed_url = url::parse_url(url)?;
+
+    if parsed_url.scheme == "fluxa" {
+        return settings::fetch_settings(parsed_url);
+    }
 
     let mut client = HttpClient::new();
 

@@ -2,7 +2,7 @@ use crate::error::ParserError;
 pub use crate::html::parser::HtmlDocument;
 use crate::html::token::tokenize;
 
-mod parser;
+pub mod parser;
 mod token;
 
 pub fn parse_html(input: &str) -> Result<HtmlDocument, ParserError> {
