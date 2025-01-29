@@ -1,8 +1,9 @@
+mod style;
+
 use flux_parser::html::parser::HtmlNode;
 use flux_parser::html::HtmlDocument;
 use gtk::prelude::*;
 use gtk::{Box, Button, Image, Label, Orientation};
-
 
 pub fn draw_dom(main_container: Box, dom: HtmlDocument) {
     while let Some(c) = main_container.last_child() {
@@ -16,15 +17,15 @@ pub fn draw_dom(main_container: Box, dom: HtmlDocument) {
 fn draw_node(node: &HtmlNode, parent: Box) {
     match node {
         HtmlNode::Element(element) => {
-            if element.tag_name == "head" ||
-                element.tag_name == "style" ||
-                element.tag_name == "script" {
+            if element.tag_name == "head"
+                || element.tag_name == "style"
+                || element.tag_name == "script"
+            {
                 return; // TODO: Gérer les éléments head
             }
             if handle_special_element(&element.tag_name, parent.clone(), element) {
                 return;
             }
-
 
             let container = Box::new(Orientation::Vertical, 0);
             parent.append(&container);
@@ -48,12 +49,16 @@ fn draw_node(node: &HtmlNode, parent: Box) {
 
 /// Gère les éléments spéciaux comme button, img, etc.
 /// Retourne `true` si l'élément a été traité comme un type spécial.
-fn handle_special_element(tag_name: &str, parent: Box, element: &flux_parser::html::parser::HtmlElement) -> bool {
+fn handle_special_element(
+    tag_name: &str,
+    parent: Box,
+    element: &flux_parser::html::parser::HtmlElement,
+) -> bool {
     match tag_name {
         "button" => {
             let button = Button::with_label(
                 element
-                    .get_attribute("label")
+                    .get_attribute("value")
                     .unwrap_or(&"Button".to_string()),
             );
             parent.append(&button);
