@@ -367,4 +367,24 @@ The document has moved
             _ => panic!("Expected a single element node"),
         }
     }
+
+    #[test]
+    fn test_button_value_with_spaces() -> Result<(), ParserError> {
+        let input = r#"<button value="Et un bouton"></button>"#;
+        let doc = parse_html(input)?;
+        assert_eq!(doc.root_nodes.len(), 1);
+
+        match &doc.root_nodes[0] {
+            HtmlNode::Element(element) => {
+                // Check the tag name
+                assert_eq!(element.tag_name.to_lowercase(), "button");
+
+                // Check that the "value" attribute includes the entire string, with spaces
+                assert_eq!(element.get_attribute("value"), Some("Et un bouton"));
+            }
+            _ => panic!("Expected a <button> element node"),
+        }
+
+        Ok(())
+    }
 }

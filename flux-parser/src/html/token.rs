@@ -1,5 +1,3 @@
-/// token.rs
-
 use crate::error::ParserError;
 
 #[derive(Debug, PartialEq)]
@@ -21,19 +19,21 @@ pub enum Token {
 }
 
 /// A very naive tokenizer that splits the input into tokens.
+/// Now updated with a more robust way of parsing attributes
+/// so that spaces inside quotes are not lost.
 pub fn tokenize(input: &str) -> Result<Vec<Token>, ParserError> {
     let mut tokens = Vec::new();
     let mut i = 0;
     let chars: Vec<char> = input.chars().collect();
 
     while i < chars.len() {
-        // Skip whitespace
+        // Skip leading whitespace (outside of tags)
         if chars[i].is_whitespace() {
             i += 1;
             continue;
         }
 
-        // Check for comment
+        // Check for comment: `<!-- ... -->`
         if i + 3 < chars.len() && &chars[i..i + 4] == ['<', '!', '-', '-'] {
             // Try to find `-->`
             if let Some(end) = find_sequence(&chars, i + 4, &['-', '-', '>']) {
@@ -46,21 +46,21 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>, ParserError> {
             }
         }
 
-        // Check for start tag or end tag
+        // Check for a start/end tag `< ... >`
         if chars[i] == '<' {
-            // Find the closing '>'
+            // Find the '>' that closes this tag
             if let Some(end) = find_char(&chars, i + 1, '>') {
+                // Everything between `<` and `>` is our tag body
                 let tag_body: String = chars[i + 1..end].iter().collect();
-                i = end + 1; // move past '>'
+                i = end + 1; // move index past `>`
 
-                // Check if it's an end tag
+                // Check if it's an end tag: `</...>`
                 if tag_body.starts_with('/') {
-                    // e.g. </div>
+                    // e.g. "</div>"
                     let tag_name = tag_body[1..].trim().to_string();
                     tokens.push(Token::EndTag(tag_name));
                 } else {
-                    // e.g. <div class="something">
-                    // We need to parse out attributes
+                    // It's a start tag. Example: `div class="something"`
                     let (tag_name, attributes) = parse_tag_and_attributes(tag_body)?;
                     tokens.push(Token::StartTag(tag_name, attributes));
                 }
@@ -81,11 +81,10 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>, ParserError> {
 
     // Finally, add EOF token
     tokens.push(Token::Eof);
-    print!("{:?}", tokens);
     Ok(tokens)
 }
 
-/// Helper function to find a single character in `chars` starting at `start`.
+/// Helper function to find a single character `c` in `chars` starting at `start`.
 fn find_char(chars: &[char], start: usize, c: char) -> Option<usize> {
     for (index, &ch) in chars.iter().enumerate().skip(start) {
         if ch == c {
@@ -95,12 +94,11 @@ fn find_char(chars: &[char], start: usize, c: char) -> Option<usize> {
     None
 }
 
-/// Helper function to find a sequence of characters in `chars` starting at `start`.
+/// Helper function to find a sequence of characters `seq` in `chars` starting at `start`.
+/// Returns the index of the sequence start if found.
 fn find_sequence(chars: &[char], start: usize, seq: &[char]) -> Option<usize> {
-    // We want to find the start index of a contiguous sequence `seq`.
-    // e.g. `seq = ['-', '-', '>']`
     let seq_len = seq.len();
-    'outer: for i in start..=chars.len() - seq_len {
+    'outer: for i in start..=chars.len().saturating_sub(seq_len) {
         for j in 0..seq_len {
             if chars[i + j] != seq[j] {
                 continue 'outer;
@@ -111,29 +109,154 @@ fn find_sequence(chars: &[char], start: usize, seq: &[char]) -> Option<usize> {
     None
 }
 
-/// Given a string containing something like `div class="hello" id="main"`,
-/// extract the `tag_name` and a vector of `(attribute, value)` pairs.
-/// For a real parser, you'd want robust handling of single quotes, no quotes, etc.
-fn parse_tag_and_attributes(s: String) -> Result<(String, Vec<(String, String)>), ParserError> {
-    let mut parts = s.trim().split_whitespace();
-    let tag_name = parts
-        .next()
-        .ok_or_else(|| ParserError::Other("Empty tag body".into()))?
-        .to_string();
+/// Parse a full tag body like:  `div class="hello" id="main"`
+/// and return `(tag_name, Vec<(attribute, value)>)`.
+/// This version does a small character-by-character parse
+/// so that spaces inside quoted values are preserved.
+fn parse_tag_and_attributes(tag_body: String) -> Result<(String, Vec<(String, String)>), ParserError> {
+    let mut chars = tag_body.trim().chars().peekable();
 
+    // 1) Parse the tag name
+    let tag_name = parse_tag_name(&mut chars)?;
+
+    // 2) Parse all attributes until the end of the tag body
+    let attributes = parse_attributes(&mut chars)?;
+
+    Ok((tag_name, attributes))
+}
+
+/// Parse the first "word" from `chars` as the tag name.
+fn parse_tag_name<I: Iterator<Item=char>>(chars: &mut std::iter::Peekable<I>) -> Result<String, ParserError> {
+    skip_whitespace(chars);
+
+    let mut tag_name = String::new();
+    while let Some(&c) = chars.peek() {
+        if c.is_whitespace() {
+            break;
+        }
+        tag_name.push(c);
+        chars.next();
+    }
+
+    if tag_name.is_empty() {
+        return Err(ParserError::Other("Empty tag body".into()));
+    }
+
+    Ok(tag_name)
+}
+
+/// Parse all attributes from the current cursor until we reach the end of the tag
+/// (i.e., `'>'` or we've consumed all characters).
+fn parse_attributes<I: Iterator<Item=char>>(chars: &mut std::iter::Peekable<I>) -> Result<Vec<(String, String)>, ParserError> {
     let mut attributes = Vec::new();
-    for part in parts {
-        // e.g. part could be `class="hello"`
-        if let Some(eq_index) = part.find('=') {
-            let attr_name = &part[..eq_index];
-            let attr_value = &part[eq_index + 1..];
-            let attr_value_clean = attr_value.trim_matches('"').to_string();
-            attributes.push((attr_name.to_string(), attr_value_clean));
-        } else {
-            // Might be a boolean attribute or something else
-            attributes.push((part.to_string(), String::new()));
+
+    loop {
+        skip_whitespace(chars);
+
+        // If we've exhausted the tag body, break
+        if chars.peek().is_none() {
+            // No more chars
+            break;
+        }
+
+        // If we see something like `>` or `/`, we've reached the tag's end
+        match chars.peek() {
+            Some('>') | Some('/') => {
+                // Just break; main tokenizer logic will handle the rest
+                break;
+            }
+            _ => {}
+        }
+
+        // Parse attribute name
+        let name = match parse_attribute_name(chars) {
+            Ok(n) => n,
+            Err(_) => {
+                // If we fail here, it could be that there's trailing slash or something
+                break;
+            }
+        };
+
+        skip_whitespace(chars);
+
+        // Parse optional `= value`
+        let mut value = String::new();
+        if let Some('=') = chars.peek() {
+            // Consume '='
+            chars.next();
+            skip_whitespace(chars);
+
+            // Parse either a quoted or unquoted value
+            value = parse_attribute_value(chars)?;
+        }
+
+        attributes.push((name, value));
+    }
+
+    Ok(attributes)
+}
+
+/// Parse a single attribute name, stopping at whitespace, `=`, `>` or `/`.
+fn parse_attribute_name<I: Iterator<Item=char>>(chars: &mut std::iter::Peekable<I>) -> Result<String, ParserError> {
+    let mut name = String::new();
+    while let Some(&c) = chars.peek() {
+        if c.is_whitespace() || c == '=' || c == '>' || c == '/' {
+            break;
+        }
+        name.push(c);
+        chars.next();
+    }
+
+    if name.is_empty() {
+        return Err(ParserError::Other("Missing attribute name".into()));
+    }
+
+    Ok(name)
+}
+
+/// Parse a single attribute value, which may be quoted or unquoted.
+fn parse_attribute_value<I: Iterator<Item=char>>(chars: &mut std::iter::Peekable<I>) -> Result<String, ParserError> {
+    let mut value = String::new();
+
+    // If it's a quoted value
+    if let Some(&quote_char) = chars.peek() {
+        if quote_char == '"' || quote_char == '\'' {
+            // Consume the quote
+            chars.next();
+
+            // Read until the matching quote
+            while let Some(&c) = chars.peek() {
+                chars.next();
+                if c == quote_char {
+                    // End of quoted value
+                    break;
+                }
+                value.push(c);
+            }
+            return Ok(value);
         }
     }
 
-    Ok((tag_name, attributes))
+    // Otherwise, parse unquoted value until whitespace or tag end
+    while let Some(&c) = chars.peek() {
+        // Stop on whitespace, or possible tag delimiter
+        if c.is_whitespace() || c == '>' || c == '/' {
+            break;
+        }
+        value.push(c);
+        chars.next();
+    }
+
+    Ok(value)
+}
+
+/// Utility: consume and discard any consecutive whitespace from the current cursor
+fn skip_whitespace<I: Iterator<Item=char>>(chars: &mut std::iter::Peekable<I>) {
+    while let Some(&c) = chars.peek() {
+        if c.is_whitespace() {
+            chars.next();
+        } else {
+            break;
+        }
+    }
 }
